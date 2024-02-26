@@ -1,0 +1,146 @@
+# Main program to plot graphs for model on Lattice.
+
+Libraries (only ggplot2), options and custom theme
+```{r}
+library(ggplot2)
+options(scipen=999)
+custom_theme <- theme_bw(base_size = 14)
+```
+
+From here on, plotting of various data. Only averages appear here, the averages are calculated in the main file.
+
+```{r}
+
+#Time of convergence vs Length
+#F = 5, q = 15
+
+Ls <- c(2, 6, 10, 14, 18, 22, 26, 30, 35)
+Ts <- c(53.25, 7514.25, 72125.0, 350491.2, 1129739.6, 2169740.6, 3912805.6, 7684875.0, 16938248.2)
+
+df <- data.frame(Ls, Ts)
+
+ggplot(df, aes(Ls, Ts)) + 
+labs(x = "Width of the Territory (L) [Log]", y = "Time of convergence (epochs) [Log]", caption=expression("F = 5, q = 15, R = 1, n"["tries"]~"= 16")) +
+ggtitle("Time of convergence vs Width") +
+custom_theme +
+scale_y_continuous(trans = "log10", labels = scales::label_number_si()) +
+scale_x_continuous(trans = "log10") +
+geom_line(linewidth = 0.8) +
+geom_point(col = "blue", size = 2) +
+annotation_logticks()
+
+
+linear_fit <- lm(log(Ts) ~ log(Ls))
+
+summary(linear_fit)
+```
+
+```{r}
+
+## Number of stable regions vs Length, 2-D
+## F = 5, q = 15
+
+Ls <- c(2, 6, 10, 14, 18, 22, 26, 30, 35)
+ns <- c(2.8750, 11.3750, 23.1250, 22.1250, 16.1875, 15.8750, 11.5625, 10.4375,  9.0000)
+
+
+# plot(Ls, ns, pch = 15, col = "black", xlab = "Width of the Territory (L)", ylab = "Number of table regions (n_c)", main = "Number of stable regions vs Width")
+df <- data.frame(Ls, ns)
+
+ggplot(df, aes(Ls, ns)) + geom_point(col = "black", size = 2) +
+  geom_line(col = "black", size = 0.8) +
+  custom_theme +
+  labs(x = "Width of Territory (L)", y = expression("Number of stable regions (n"["c"] ~ ")"), title="Number of stable regions vs Width", caption="F = 5, q = 15, R = 1, n_tries = 16")
+
+# axis(2, at=seq(3, 7, by=0.5), labels=paste("10^", seq(3, 7, by=0.5), sep=""))
+
+# lines(Ls, ns, col = "black")
+
+```
+
+```{r}
+
+## Analysis [s_max/L^2](q) at various L's
+## F = 10
+
+n_20 <- c(1.00000000, 0.99218750, 0.88859375, 0.47843750, 0.12265625, 0.08078125, 0.03703125, 0.02984375, 0.02406250, 0.02015625)
+n_30 <- c(1.00000000, 0.99826389, 0.96861111, 0.76097222, 0.10284722, 0.04923611, 0.02423611, 0.01423611, 0.01187500, 0.01243056)
+n_40 <- c(1.000000000, 0.999765625, 0.984492188, 0.891210938, 0.287148438, 0.047226562, 0.015429688, 0.013203125, 0.009257813, 0.007031250)
+
+qs <- c(10, 20, 30, 40, 50, 60, 70, 80, 90, 100)
+
+df <- data.frame(qs, n_20, n_30, n_40)
+
+ggplot(df, aes(x = qs)) +
+  geom_line(aes(y = n_20, color = "L = 20"), linewidth=0.8) +
+  geom_line(aes(y = n_30, color = "L = 30"), linewidth = 0.8) +
+  geom_line(aes(y = n_40, color = "L = 40"), linewidth = 0.8) +
+  custom_theme +
+  labs(x = "q-values", y = expression("Average S"["max"] ~ "over L"^"2"), title="Average maximum region size vs q", caption = expression("F = 10, R = 1, n"["tries"] ~ "= 16"))+
+  geom_point(aes(y = n_20), shape=15, col = "red", size=3) +
+  geom_point(aes(y = n_30), shape=16, col = "blue", size=3) +
+  geom_point(aes(y = n_40), shape=17, col = "green", size=3) +
+  scale_color_manual(name="Width Territory",
+                     breaks=c("L = 20", "L = 30", "L = 40"),
+                     values=c("L = 20"="red", "L = 30"="blue", "L = 40"="green"))+
+  geom_vline(xintercept =42, col="black", linetype=2)+
+  annotate("text", x=35, y=0.125, label = expression("q"["c"] ~ "~ 42"))
+
+
+```
+
+
+```{r}
+
+## F = 10
+## L = 20
+times <- c(1, 1:299 * as.integer((30**4)/10))
+
+colours <- colorRampPalette(c("tomato", "turquoise3"))(9)
+
+df <- data.frame(times, q10, q20, q30, q35, q40, q45, q55, q70, q100)
+
+ggplot(df, aes(x = times))+
+  geom_line(aes(y=q10, color="q = 10"))+
+  geom_line(aes(y=q20), col=colours[2])+
+  geom_line(aes(y=q30), col=colours[3])+
+  geom_line(aes(y=q35), col=colours[4])+
+  geom_line(aes(y=q40, color="q = 40"))+
+  geom_line(aes(y=q45), col=colours[6])+
+  geom_line(aes(y=q55), col=colours[7])+
+  geom_line(aes(y=q70), col=colours[8])+
+  geom_line(aes(y=q100, color="q = 100"))+
+  labs(x = "Epoch", y = expression("n"["a"] ~ "(epoch)"), title=expression("n"["a"] ~ "over epochs for different q-values"), caption=expression("F = 10, q"["c"]~"~ 42, R = 1, n"["tries"] ~ "= 16"))+
+  custom_theme+
+  scale_color_manual(name="q-values",
+                   breaks=c("q = 10", "q = 40", "q = 100"),
+                   values=c("q = 10"=colours[1], "q = 40"=colours[5], "q = 100"=colours[9]))
+
+```
+
+
+```{r}
+
+#Time of convergence vs Length, linear dimension
+#F = 5, q = 15
+
+Ls <- c(10, 40, 90, 150, 300, 500)
+Ts <- c(275.9375,  2314.0000,  7105.5000, 11719.6875, 33701.2500, 76187.5000)
+
+df <- data.frame(Ls, Ts)
+
+ggplot(df, aes(Ls, Ts)) + 
+labs(x = "Width of the Territory (L) [Log]", y = "Time of convergence (epochs) [Log]", caption=expression("F = 5, q = 15, R = 1, n"["tries"]~"= 16")) +
+ggtitle("Time of convergence vs Width [1D]") +
+custom_theme +
+scale_y_continuous(trans = "log10", labels = scales::label_number_si()) +
+scale_x_continuous(trans = "log10") +
+geom_line(linewidth = 0.8) +
+geom_point(col = "blue", size = 2) +
+annotation_logticks()
+
+
+linear_fit <- lm(log(Ts) ~ log(Ls))
+
+summary(linear_fit)
+```

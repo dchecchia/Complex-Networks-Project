@@ -1,0 +1,110 @@
+# Main program to plot graphs for model on Italy.
+
+Libraries (only ggplot2), options and custom theme
+```{r}
+library(ggplot2)
+options(scipen=999)
+custom_theme <- theme_bw(base_size = 14)
+```
+
+From here on, plotting of various data. Only averages appear here, the averages are calculated in the main file.
+
+```{r}
+k_s <- c(1:30)
+Pk_s <- degree_distribution(italy)
+
+df <- data.frame(k_s, Pk_s)
+
+ggplot(df, aes(x = k_s))+
+  geom_line(aes(y = Pk_s), col = "black")+
+  geom_point(aes(y = Pk_s), col = "blue", size=2)+
+  labs(x = "k", y = "P(k)", title="Degree Distribution for Italy Graph")+
+  custom_theme
+  
+
+```
+
+```{r}
+
+w_s <- c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
+n_cs <- c(3.125, 3.250, 3.125, 3.750, 3.125, 3.000, 2.625, 3.500, 3.250, 4.500)
+
+df <- data.frame(w_s, n_cs)
+
+ggplot(df, aes(x = w_s))+
+  geom_line(aes(y = n_cs), col = "black")+
+  geom_point(aes(y = n_cs), col = "blue", size=2)+
+  labs(x = "w", y = "n_c(w)", title="Number of stable communities vs weight in p-calculation", caption = expression("F = 15, q = 25, R = 1, n"["tries"] ~ "= 16"))+
+  custom_theme+ylim(0, 5)
+
+```
+
+```{r}
+
+## How zeta influences the height_difference calculation, given |z_a - z_b| = 500
+
+zeta_s <- c(0.1, 0.5, 1, 5, 10, 5, 100, 500, 1000, 5000, 10000)
+p_s <- sapply(zeta_s, function(x) x/(500 + x))
+
+p_s
+
+df <- data.frame(zeta_s, p_s)
+
+ggplot(df, aes(x = zeta_s))+
+  geom_line(aes(y = p_s), col="black")+
+  geom_point(aes(y = p_s), col="blue")+
+  custom_theme+
+  scale_x_continuous(trans="log10")+
+  labs(x = "zeta-values", y = "p(zeta)", title=expression("Values of p(zeta) given | z"["a"]~"- z"["b"]~"| = 500"), subtitle="(Only considering elevation part)", caption="p(z) = z/(|za-zb| + z)")+
+  annotation_logticks()
+
+```
+
+```{r}
+
+w_s <- c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
+s_max <- c(0.9159091, 0.8920455, 0.8943182, 0.8670455, 0.8727273, 0.8977273, 0.9000000, 0.9113636, 0.9102273, 0.8670455)
+
+df <- data.frame(w_s, s_max)
+
+ggplot(df, aes(x = w_s))+
+  geom_line(aes(y = s_max), col = "black")+
+  geom_point(aes(y = s_max), col = "blue", size=2)+
+  labs(x = "w", y = expression("< S"["max"]~">/N"), title="Average size of max community vs w-parameter", caption=expression("F = 15, q = 25, zeta = 10, R = 1, n"["tries"] ~ "= 16"))+
+  custom_theme+
+  ylim(0, 1)
+
+```
+
+```{r}
+
+zeta_s <- c(0.1, 0.5, 1, 5, 10, 50, 100, 500, 1000)
+n_cs <- c(3.5000, 3.6875, 2.9375, 3.5625, 3.8125, 3.3125, 3.2500, 3.4375, 3.6875)
+
+df <- data.frame(zeta_s, n_cs)
+
+ggplot(df, aes(x = zeta_s))+
+  geom_line(aes(y = n_cs), col = "black")+
+  geom_point(aes(y = n_cs), col = "blue")+
+  labs(x = "zeta", y = expression("n"["c"]), title="Number of stable communities vs Zeta value", caption=expression("w = 0.5, F = 15, q = 25, R = 1, n"["tries"] ~ "= 16"))+
+  custom_theme+
+  scale_x_continuous(trans = "log10")+
+  ylim(1, 7)+
+  annotation_logticks()
+
+```
+```{r}
+
+w_s <- c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
+n_cs <- c(3.125, 3.250, 3.125, 3.750, 3.125, 3.000, 2.625, 3.500, 3.250, 4.500)
+
+df <- data.frame(w_s, n_cs)
+
+ggplot(df, aes(x = w_s))+
+  geom_line(aes(y = n_cs), col = "black")+
+  geom_point(aes(y = n_cs), col = "blue", size=2)+
+  labs(x = "w", y = expression("n"["c"]), title="Number of stable communities vs w-parameter", caption=expression("F = 15, q = 25, zeta = 10, R = 1, n"["tries"] ~ "= 16"))+
+  custom_theme+
+  ylim(1, 7)
+
+```

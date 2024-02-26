@@ -1,0 +1,114 @@
+# Main program to plot graphs for model on ER.
+
+Libraries (only ggplot2), options and custom theme
+```{r}
+library(ggplot2)
+options(scipen=999)
+custom_theme <- theme_bw(base_size = 14)
+```
+
+From here on, plotting of various data. Only averages appear here, the averages are calculated in the main file.
+
+```{r}
+
+## Graph n_c(p)/N for different Ns
+## F = 5, q = 15
+
+p_s <- c(0.01, 0.015, 0.02, 0.025, 0.03, 0.05, 0.1)
+n_c100 <- c(84.0625, 74.9375, 61.3125, 32.8125, 20.0000, 3.9375, 1.2500)
+n_c100 <- n_c100/100
+n_c200 <- c(90.6875, 26.6875, 8.8750, 3.0000, 2.0625, 1.1250, 1.0625)
+n_c200 <- n_c200/200
+n_c300 <- c(28.0000, 6.1875, 1.6250, 1.1250, 1.0625, 1.0000, 1.0000)
+n_c300 <- n_c300/300
+
+df <- data.frame(p_s, n_c100, n_c200, n_c300)
+
+ggplot(df, aes(x = p_s)) + 
+  geom_line(aes(y = n_c100, col = "N = 101")) +
+  geom_line(aes(y = n_c200, col = "N = 201")) +
+  geom_line(aes(y = n_c300, col = "N = 301")) +
+  geom_point(aes(y = n_c100, col = "N = 101"), size=2) +
+  geom_point(aes(y = n_c200, col = "N = 201"), size=2) +
+  geom_point(aes(y = n_c300, col = "N = 301"), size=2) +
+  custom_theme +
+  scale_color_manual(name="Number of nodes",
+                   breaks=c("N = 101", "N = 201", "N = 301"),
+                   values=c("N = 101" = "red", "N = 201" = "blue", "N = 301" = "green"))+
+  labs(x = "p", y = expression("n"["c"] ~ "/ N"), title="Normalized stable regions vs p for different sizes", caption=expression("F = 5, q = 15, R = 1, n"["tries"] ~ "= 16"))
+
+```
+
+
+```{r}
+
+## Plot n_c(<k>)/N at different Ns.
+## F = 5, q = 15, R = 1
+
+k_means <- c(1, 1.5, 2, 2.5, 3, 5, 10)
+
+n101 <- c(0.81497525, 0.72772277, 0.52846535, 0.41027228, 0.21349010, 0.05693069, 0.01547030)
+n201 <- c(0.827114428, 0.692164179, 0.440920398, 0.227300995, 0.113805970, 0.01772388, 0.005597015)
+n301 <- c(0.837209302, 0.676702658, 0.364202658, 0.181686047, 0.092192691, 0.013496678, 0.003322259)
+
+df <- data.frame(k_means, n101, n201, n301)
+
+ggplot(df, aes(x = k_means)) + 
+  geom_line(aes(y = n101, col = "N = 101")) +
+  geom_line(aes(y = n201, col = "N = 201")) +
+  geom_line(aes(y = n301, col = "N = 301")) +
+  custom_theme +
+  geom_point(aes(y = n101, col = "N = 101"), size=2)+
+  geom_point(aes(y = n201, col = "N = 201"), size=2)+
+  geom_point(aes(y = n301, col = "N = 301"), size=2)+
+  scale_color_manual(name="Number of nodes",
+                   breaks=c("N = 101", "N = 201", "N = 301"),
+                   values=c("N = 101" = "red", "N = 201" = "blue", "N = 301" = "green"))+
+  labs(x = "<k>", y = expression("n"["c"]~"/ N"), title="Normalized stable regions vs <k> for different sizes", caption=expression("F = 5, q = 15, R = 1, n"["tries"] ~ "= 16"))
+
+```
+
+```{r}
+
+k_means <- c(1, 1.5, 2, 2.5, 3, 5, 10, 20, 50, 100)
+T_s <- c(10028.75, 48599.50, 199155.00, 232134.50, 234974.50, 236962.50, 253452.25, 255990.5, 312364.5, 321931.8 )
+
+df <- data.frame(k_means, T_s)
+
+ggplot(df, aes(x = k_means)) +
+  geom_line(aes(y = T_s), col = "black") +
+  geom_point(aes(y = T_s), col = "blue", size = 2) +
+  custom_theme +
+  labs(x = "<k>", y = expression("T"["co"]), title ="Time of convergence vs <k>", caption =expression("F = 5, q = 15, N = 200, R = 1, n"["tries"] ~ "= 16"))+
+  scale_y_continuous(trans = "log10", labels = scales::label_number_si())+
+  scale_x_continuous(trans = "log10")+
+  annotation_logticks()
+
+```
+
+```{r}
+
+## [S_max/N](q) for different N
+## N = 100, N = 150, N = 200
+
+q_s <- c(40, 60, 80, 100, 120, 150)
+s_max201 <- c(0.9869403, 0.9539801, 0.8448383, 0.7036692, 0.4561567, 0.1943408)
+s_max151 <- c(0.9801325, 0.9060430, 0.7251656, 0.5918874, 0.3137417, 0.1870861)
+s_max101 <- c(0.9702970, 0.7660891, 0.5779703, 0.3582921, 0.2611386, 0.1441832)
+
+df <- data.frame(q_s, s_max201)
+
+ggplot(df, aes(x = q_s)) +
+  geom_line(aes(y = s_max201, color="N = 201"))+
+  geom_line(aes(y = s_max101, color="N = 101"))+
+  geom_line(aes(y = s_max151, color="N = 151"))+
+  geom_point(aes(y = s_max201, color="N = 201"), size=2)+
+  geom_point(aes(y = s_max101, color="N = 101"), size=2)+
+  geom_point(aes(y = s_max151, color="N = 151"), size=2)+
+  custom_theme+
+  labs(x = "q-values", y = expression("< S"["max"] ~ ">/N"), title="Maximum relative size vs q", caption=expression("F = 15, R = 1, <k> = 5, n"["tries"]~"= 16"))+
+  scale_color_manual(name="Number of nodes",
+                   breaks=c("N = 101", "N = 151", "N = 201"),
+                   values=c("N = 101" = "red", "N = 151" = "blue", "N = 201" = "green"))
+
+```

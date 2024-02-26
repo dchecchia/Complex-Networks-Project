@@ -1,0 +1,433 @@
+# Main code for simulation on Italy.
+
+Required libraries
+```{r}
+library(igraph)
+library(readr)
+library(foreach)
+library(doParallel)
+```
+
+Useful functions for Italy
+```{r}
+# Calculate pairwise distances using Haversine formula
+haversine_distance <- function(lat1, lon1, lat2, lon2) {
+  dlat <- (lat2 - lat1) * pi / 180
+  dlon <- (lon2 - lon1) * pi / 180
+  a <- sin(dlat/2)^2 + cos(lat1 * pi / 180) * cos(lat2 * pi / 180) * sin(dlon/2)^2
+  c <- 2 * atan2(sqrt(a), sqrt(1 - a))
+  R_e <- 6371 # Earth radius in kilometers
+  return(R_e * c)
+}
+
+
+# Create italy graph starting from csv files. Flag plot_flag is needed if I want to plot when creating.
+create_italy <- function(plot_flag = FALSE){
+  
+  city_data <- read_csv("ITA_nodes_elevation.csv")
+  
+  # Define your distance threshold (in kilometers)
+  d <- 150
+  
+  # Create a graph
+  city_graph <- graph.empty(n = nrow(city_data), directed = FALSE)
+  
+  # Add nodes (cities) to the graph
+  V(city_graph)$name <- city_data$name
+  V(city_graph)$latitude <- city_data$latitude
+  V(city_graph)$longitude <- city_data$longitude
+  V(city_graph)$elevation <- city_data$elevation
+  
+  # Add edges (connections) based on distance threshold
+  for (i in 1:(nrow(city_data) - 1)) {
+    for (j in (i + 1):nrow(city_data)) {
+      dist <- haversine_distance(
+        city_data$latitude[i], city_data$longitude[i],
+        city_data$latitude[j], city_data$longitude[j]
+      )
+      if (dist <= d) {
+        city_graph <- add_edges(city_graph, c(i, j))
+      }
+    }
+  }
+
+  # Layout for visualization
+  layout_coords <- as.matrix(city_data[, c("longitude", "latitude")])
+  layout_geographical <- layout_with_fr(city_graph, coords = layout_coords)
+  
+  # In case I want to rotate the plot:
+  # angle = -30*pi/180
+  # RotMat = matrix(c(cos(angle),sin(angle),-sin(angle), cos(angle)), ncol=2)
+  # layout_geographical = layout_geographical %*% RotMat
+  
+  
+  # Plot the graph with the geographical layout
+  g <- city_graph
+  if(plot_flag){
+    plot(g,
+         layout = layout_geographical,
+         vertex.label = NA,
+         vertex.size = 10,
+         vertex.label.cex = 0.8,
+         # edge.arrow.size = 0.5,
+         main = "Main Cities of Italy Graph"
+    )
+  }
+
+  return(g)
+}
+  
+```
+
+Useful, general functions
+```{r}
+
+# Compatibility between cultures, i.e. classical probability
+compatibility <- function(cul1, cul2){
+  common <- sum(cul1==cul2)
+  total <- length(cul1)
+  perc_eq <- common/total
+  return(perc_eq)
+}
+
+# New Probability of interaction, counting the compatibility
+probability <- function(compatibility, w=0, z1, z2, zeta=10){
+  p <- compatibility*(1 - w + w*zeta/(abs(z1-z2) + zeta))
+  return(p)
+}
+
+
+# Simple plot function for viz purposes
+plot_graph <- function(g, labels, w=0.5, main=NA, F=5){
+  
+  colours <- colorRampPalette(c("white", "darkcyan"))(F+1)
+
+  types <- c(replicate(F, "dotted"), "solid")
+
+  
+  layout = layout.grid(g)
+  ## Create vector for representation
+  edge_widths <- replicate(length(E(g)), 1, simplify=FALSE)
+  edge_colours <- replicate(length(E(g)), 1, simplify=FALSE)
+  edge_linetype <- replicate(length(E(g)), 1, simplify=FALSE)
+  
+  cultures_list <- V(g)$cultures
+  
+  for(i in 1:length(E(g))){
+    edge <- E(g)[i]
+    
+    ##Extract the two nodes
+    first_node <- ends(g, edge)[1]
+    second_node <- ends(g, edge)[2]
+    
+    compat <- compatibility(cultures_list[[first_node]], cultures_list[[second_node]])
+    
+    ## Assign the values for representation
+    edge_widths[i] <- 10*compat
+    edge_colours[i] <- colours[as.integer(compat*F) + 1]
+    edge_linetype[i] <- types[as.integer(compat*F) + 1]
+    
+  }
+  
+  plot_labels <- NA
+  
+  if(is.na(labels)){
+    plot_labels <- NA
+  }else if(labels=="Cultures"){
+    plot_labels <- V(g)$cultures
+  }else if(labels=="Index"){
+    plot_labels <- names(V(g))
+  }
+
+  
+  plot(g, layout=layout, 
+       vertex.size=10,
+       vertex.color="darkcyan",
+       vertex.frame.color="darkcyan",
+       vertex.shape="circle",
+       vertex.label = plot_labels,
+       edge.width = edge_widths,
+       edge.color = unlist(edge_colours),
+       edge.lty = unlist(edge_linetype),
+       main=main
+       )
+}
+
+
+# Calculates edge weights. Performance mode is just "stop the calc if you see a weight not in {0,1}"
+# 100% There is a better way to do this
+calc_edges_weights <- function(g, performance=FALSE){
+  
+  edge_weights <- replicate(length(E(g)), 0.5, simplify=FALSE)
+  
+  cultures_list <- V(g)$cultures
+  
+  for(i in 1:length(E(g))){
+    
+    edge <- E(g)[i]
+    
+    ##Extract the two nodes
+    first_node <- ends(g, edge)[1]
+    second_node <- ends(g, edge)[2]
+    
+    ##Take nodes as index, so I can extract info from lists.
+    first_node <- as.numeric(V(g)[first_node])
+    second_node <- as.numeric(V(g)[second_node])
+    
+    
+    compatibility <- chance_interaction(cultures_list[[first_node]], cultures_list[[second_node]])
+    
+    if(performance){
+      if((compatibility!=1) && (compatibility!=0)){break}
+    }
+    ## Assign the values for representation
+    edge_weights[i] <- compatibility
+  }
+  
+  return(edge_weights)
+}
+
+
+# Functions to find neighbors on lattices. More efficient than built-in igraph methods?
+find_neighbours <- function(index, L){
+  index <- index -1
+  
+  n_1 <- n_2 <- n_3 <- n_4 <- NA
+  
+  if (index+L < L^2) { n_1 <- index+L }
+  if (index-L > 0) { n_2 <- index-L }
+  if (index %% L != 0) { n_3 <- index-1 }
+  if (index %% L != L-1) { n_4 <- index+1}
+  
+  neigh <- c(n_1, n_2, n_3, n_4)
+  
+  neigh <- neigh[!is.na(neigh)] + 1
+  
+  return(neigh)
+}
+
+# Functions for neighbours, but in 1D. Possible to write in 3D due to regularity.
+find_neighbours_1D <- function(index, L){
+  index <- index -1
+  
+  n_3 <- n_4 <- NA
+  
+  if (index %% L != 0) { n_3 <- index-1 }
+  if (index %% L != L-1) { n_4 <- index+1}
+  
+  neigh <- c(n_3, n_4)
+  
+  neigh <- neigh[!is.na(neigh)] + 1
+  
+  return(neigh)
+}
+
+```
+
+
+Main code for simulation
+```{r}
+
+
+## Graph Parameters
+# q_s <- c(25)  ## Features range in {1, 2, ..., q}
+q <- 25
+F_s <- c(15) ## Number of features
+w_s <- c(0.5)
+R <- 1 ##Radius of Action
+zeta_s <- c(0.1, 0.5, 1, 5, 10, 50, 100, 500, 1000)
+
+
+## Parallelization instruction
+num_cores <- detectCores()
+cl <- makeCluster(num_cores)
+registerDoParallel(cl)
+
+## Monitoring and repetitions
+tries <- 16
+start_time <- Sys.time()
+
+## Create graph once, so it's not heavy on for-loops
+italy <- create_italy()
+N <- length(V(italy))
+altitudes_list <- V(italy)$elevation
+
+for(F in F_s){
+  for(w in w_s){
+
+    # Parallelization for loops
+    res <- foreach(zeta = zeta_s, .combine=cbind) %:%
+        foreach(i = 1:tries, .packages="igraph", .combine=c) %dopar% {
+        
+
+        # Initialize epoch, epoch_steps, the initial graph
+        epoch <- 0
+        g <- italy
+        epoch_dim <- 1000
+        
+        # Initialize starting state for graph and culture
+        V(g)$cultures <- replicate(N, sample(1:q, F, replace=TRUE), simplify=FALSE)
+        cultures_list <- V(g)$cultures
+        edge_weights <- calc_edges_weights(g)
+        
+        # Start main evolution loop
+        while(TRUE){
+          
+          epoch <- epoch + 1
+          
+          ##Choose one vertex at random
+          chosen <- sample(1:N, 1, replace=TRUE)
+          
+          ##Take neighbours of that vertex, pick one at random
+          ## Neighbours for general graphs
+          neighbours <- neighbors(g, chosen)
+
+          
+          ## If there is a neighbour, then... (It was needed for ER graph, stuck here anyway)
+          if(length(neighbours)>0){
+            
+            ## Random draw, taking info from lists
+            neighbour_index <- sample(length(neighbours), 1)
+            chosen_neighbour <- neighbours[neighbour_index]
+          
+            main_features <- cultures_list[[chosen]]
+            neighbour_features <- cultures_list[[chosen_neighbour]]
+            
+            main_elevation <- altitudes_list[[chosen]]
+            neighbour_elevation <- altitudes_list[[chosen_neighbour]]
+            
+            ##Calculate chance of interaction
+            compat <- compatibility(main_features, neighbour_features)
+            p <- probability(compat, w, main_elevation, neighbour_elevation, zeta)
+            
+            ##If success in chance, update one of the remaining traits
+            if((runif(1) < p) && compat!=1){
+              loop_flag = TRUE
+  
+              feat_index <- 1
+              
+
+              ## Loop from first feature to last until you find a different feat.
+              ## Guaranteed to find at least one, since compat<1.
+              while(loop_flag){
+                
+                if(main_features[feat_index] != neighbour_features[feat_index]){
+                  
+                  new_attr <- main_features
+                  
+                  new_attr[feat_index] <- neighbour_features[feat_index]
+                  
+                  cultures_list[[chosen]] <- new_attr
+                  
+                  loop_flag <- FALSE
+
+                }
+                
+                feat_index <- feat_index + 1
+              
+              }
+            }
+          }
+          
+          ## Statistics vs time calculation. Also for stopping.
+          if(epoch%%epoch_dim == 0 || epoch==1){
+            
+            # Calculate all edge weights based on compatibility,
+            # so that we may stop the loop at frozen state.
+
+            edge_weights <- calc_edges_weights(g, performance=TRUE)
+            
+            V(g)$cultures <- cultures_list
+            
+            if(all(edge_weights %in% c(0, 1))){ break }
+            
+          }
+        }
+        
+        edge_weights <- calc_edges_weights(g)
+        comms_g <- delete_edges(g, which(edge_weights==0))
+        
+        ## Calculate communities by simply considering connected components,
+        ## then creating the communities object
+        clusters_graph <- components(comms_g)
+        
+        n_c <- clusters_graph$no
+        s_max <- clusters_graph$csize[order(clusters_graph$csize, decreasing=TRUE)][1]
+        
+
+        ## Need to call the variable in order to make parallelized loops work.
+        n_c
+        
+    }
+  }
+}
+
+stopCluster(cl)
+
+end_time <- Sys.time()
+
+```
+
+
+From here on, only results show/plot etc...
+
+```{r}
+colnames(res) = lapply(zeta_s, function(x) paste("zeta =", x))
+
+res_mean <- colMeans(res)
+
+res_mean
+
+## To use when foreach retrieves VECTORS and not SCALARS
+# res_mat <- matrix(unlist(res), byrow=FALSE, nrow=300)
+# res_mat
+```
+
+```{r}
+end_time - start_time
+```
+
+
+```{r}
+colours <- colorRampPalette(c("white", "darkcyan"))(F+1)
+
+types <- c(replicate(F, "dotted"), "solid")
+
+
+layout = layout.grid(g)
+## Create vector for representation
+edge_widths <- replicate(length(E(g)), 1, simplify=FALSE)
+edge_colours <- replicate(length(E(g)), 1, simplify=FALSE)
+edge_linetype <- replicate(length(E(g)), 1, simplify=FALSE)
+
+
+for(i in 1:length(E(g))){
+  edge <- E(g)[i]
+  
+  ##Extract the two nodes
+  first_node <- ends(g, edge)[1]
+  second_node <- ends(g, edge)[2]
+  
+  compatibility <- chance_interaction(V(g)$cultures[[first_node]], V(g)$cultures[[second_node]])
+  
+  ## Assign the values for representation
+  edge_widths[i] <- 10*compatibility
+  edge_colours[i] <- colours[as.integer(compatibility*F) + 1]
+  edge_linetype[i] <- types[as.integer(compatibility*F) + 1]
+  
+}
+
+
+plot(g, layout=layout_on_grid, 
+     vertex.size=1,
+     vertex.color="darkcyan",
+     vertex.frame.color="darkcyan",
+     vertex.shape="circle",
+     vertex.label = NA,
+     edge.width = edge_widths,
+     edge.color = unlist(edge_colours),
+     edge.lty = unlist(edge_linetype),
+     main="Graph"
+     )
+
+```
